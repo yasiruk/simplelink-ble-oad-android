@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ti_oad_example</string>
+    <string name="start_scan">Start Scan</string>
+</resources>
