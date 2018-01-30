@@ -1,6 +1,7 @@
 package com.ti.ti_oad_example;
 
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -22,6 +23,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
@@ -32,6 +34,8 @@ import com.ti.ti_oad.TIOADEoadDefinitions;
 import com.ti.ti_oad.TIOADEoadHeader;
 import com.ti.ti_oad.TIOADEoadImageReader;
 
+import org.w3c.dom.Text;
+
 import java.util.ArrayList;
 
 public class TIOADExampleActivity extends AppCompatActivity {
@@ -40,6 +44,11 @@ public class TIOADExampleActivity extends AppCompatActivity {
   TIOADExampleActivity mThis;
   ArrayList<BluetoothDevice> mDeviceList;
   TableLayout mDeviceListTable;
+  BluetoothLeScanner scanner;
+  TIOADEoadClient client;
+  ProgressBar oadProgressBar;
+  TextView oadState;
+
 
 
   @Override
@@ -47,7 +56,7 @@ public class TIOADExampleActivity extends AppCompatActivity {
     super.onCreate(savedInstanceState);
     mThis = this;
     mDeviceList = new ArrayList<BluetoothDevice>();
-    setContentView(R.layout.activity_tioadexample);
+    setContentView(R.layout.activity_tioad_example);
 
     TIOADEoadImageReader reader = new TIOADEoadImageReader(
             "ble5_project_zero_cc26x2r1lp_app_FlashROM_Release_oad.bin",
@@ -66,6 +75,12 @@ public class TIOADExampleActivity extends AppCompatActivity {
     });
 
     mDeviceListTable = (TableLayout)findViewById(R.id.device_table);
+
+    oadProgressBar = (ProgressBar)findViewById(R.id.oad_progress);
+    oadProgressBar.setMax(100);
+
+    oadState = (TextView)findViewById(R.id.oad_status);
+
 
     Log.d(TAG,"Requesting permission");
     int permissionCheck = ContextCompat.checkSelfPermission(mThis, Manifest.permission.ACCESS_FINE_LOCATION);
@@ -89,50 +104,55 @@ public class TIOADExampleActivity extends AppCompatActivity {
     BluetoothManager m = (BluetoothManager)this.getSystemService(Context.BLUETOOTH_SERVICE);
     BluetoothAdapter adapt = m.getAdapter();
 
-    BluetoothLeScanner scanner = adapt.getBluetoothLeScanner();
-    scanner.startScan(new ScanCallback() {
-      @Override
-      public void onScanResult(int callbackType, ScanResult result) {
-        super.onScanResult(callbackType, result);
-        if (!mDeviceList.contains(result.getDevice())) {
-          Log.d(TAG,"Found new device: " + result.getDevice().getName() + " (" + result.getDevice().getAddress() + ")");
-          mDeviceList.add(result.getDevice());
-          LayoutInflater li = LayoutInflater.from(mThis);
-          final View deviceTR = li.inflate(R.layout.tr_device_row,null, false);
-          deviceTR.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-              Log.d(TAG,"Cell clicked: " + mDeviceListTable.indexOfChild(deviceTR));
-              mDeviceListTable.setVisibility(View.INVISIBLE);
-              deviceWasClicked(mDeviceListTable.indexOfChild(deviceTR));
-            }
-          });
-
-          ImageView devIcon = (ImageView)deviceTR.findViewById(R.id.device_icon);
-          devIcon.setImageResource(R.mipmap.device_unknown);
-          TextView devName = (TextView)deviceTR.findViewById(R.id.device_name);
-          TextView devAddress = (TextView)deviceTR.findViewById(R.id.device_address);
-          devName.setText(((result.getDevice().getName()) == null) ? "No localname" : result.getDevice().getName());
-          devAddress.setText(result.getDevice().getAddress());
-          mDeviceListTable.addView(deviceTR);
-        }
-      }
-
-      @Override
-      public void onScanFailed(int errorCode) {
-        super.onScanFailed(errorCode);
-      }
-    });
+    scanner = adapt.getBluetoothLeScanner();
+    scanner.startScan(bleScanCallback);
 
   }
 
+  private ScanCallback bleScanCallback = new ScanCallback() {
+    @Override
+    public void onScanResult(int callbackType, ScanResult result) {
+      super.onScanResult(callbackType, result);
+      if (!mDeviceList.contains(result.getDevice())) {
+        Log.d(TAG,"Found new device: " + result.getDevice().getName() + " (" + result.getDevice().getAddress() + ")");
+        mDeviceList.add(result.getDevice());
+        LayoutInflater li = LayoutInflater.from(mThis);
+        final View deviceTR = li.inflate(R.layout.tr_device_row,null, false);
+        deviceTR.setOnClickListener(new View.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            Log.d(TAG,"Cell clicked: " + mDeviceListTable.indexOfChild(deviceTR));
+            mDeviceListTable.setVisibility(View.INVISIBLE);
+            scanner.stopScan(bleScanCallback);
+            deviceWasClicked(mDeviceListTable.indexOfChild(deviceTR));
+          }
+        });
+
+        ImageView devIcon = (ImageView)deviceTR.findViewById(R.id.device_icon);
+        devIcon.setImageResource(R.mipmap.device_unknown);
+        TextView devName = (TextView)deviceTR.findViewById(R.id.device_name);
+        TextView devAddress = (TextView)deviceTR.findViewById(R.id.device_address);
+        devName.setText(((result.getDevice().getName()) == null) ? "No localname" : result.getDevice().getName());
+        devAddress.setText(result.getDevice().getAddress());
+        mDeviceListTable.addView(deviceTR);
+      }
+    }
+
+    @Override
+    public void onScanFailed(int errorCode) {
+      super.onScanFailed(errorCode);
+    }
+  };
+
   public void deviceWasClicked(int index) {
     BluetoothDevice dev = mDeviceList.get(index);
-    TIOADEoadClient client = new TIOADEoadClient(this,"ble5_project_zero_cc26x2r1lp_app_FlashROM_Release_oad.bin");
-    client.startTIOADEoadProgrammingOnDevice(dev, new TIOADEoadClientProgressCallback() {
+    client = new TIOADEoadClient(mThis,"ble5_project_zero_cc26x2r1lp_app_FlashROM_Release_oad.bin");
+
+    client.initializeTIOADEoadProgrammingOnDevice(dev, new TIOADEoadClientProgressCallback() {
       @Override
       public void oadProgressUpdate(float percent) {
         Log.d(TAG,"Progress update : " + percent + "%");
+        oadProgressBar.setProgress((int)percent);
       }
 
       @Override
@@ -142,10 +162,10 @@ public class TIOADExampleActivity extends AppCompatActivity {
           case tiOADClientOADServiceMissingOnPeripheral:
           case tiOADClientOADWrongVersion:
           case tiOADClientOADCharacteristicMissingOnPeripheral:
-            showAlert(status);
+            //showAlert(status);
             break;
           case tiOADClientReady:
-            showStart(status);
+            //showStart(status);
             break;
 
 
@@ -166,6 +186,7 @@ public class TIOADExampleActivity extends AppCompatActivity {
                 .setPositiveButton("YES", new DialogInterface.OnClickListener() {
                   @Override
                   public void onClick(DialogInterface dialog, int which) {
+                    client.start();
                   }
                 })
                 .setNegativeButton("CANCEL", new DialogInterface.OnClickListener() {
@@ -196,8 +217,6 @@ public class TIOADExampleActivity extends AppCompatActivity {
       }
     });
   }
-
-
 }
 
 

@@ -1,21 +1,12 @@
 package com.ti.ti_oad;
 
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.os.Build;
 import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.UUID;
 
 /**
  * Created by ole on 10/11/2017.
@@ -51,5 +42,35 @@ public class TIOADEoadImageReader {
       Log.d(TAG,"Could not read input file");
     }
   }
+
+  public byte[] getRawImageData() {
+    return rawImageData;
+  }
+
+  public byte[] getHeaderForImageNotify() {
+    byte[] imageNotifyHeader = new byte[22];
+    int position = 0;
+    //0
+    System.arraycopy(imageHeader.TIOADEoadImageIdentificationValue,0,imageNotifyHeader,position,imageHeader.TIOADEoadImageIdentificationValue.length);
+    position += imageHeader.TIOADEoadImageIdentificationValue.length;
+    //7
+    imageNotifyHeader[position++] = imageHeader.TIOADEoadBIMVersion;
+    //8
+    imageNotifyHeader[position++] = imageHeader.TIOADEoadImageHeaderVersion;
+    //9
+    System.arraycopy(imageHeader.TIOADEoadImageInformation,0,imageNotifyHeader,position,imageHeader.TIOADEoadImageInformation.length);
+    position += imageHeader.TIOADEoadImageInformation.length;
+    //13
+    for (int ii = 0; ii < 4; ii++) {
+      imageNotifyHeader[position++] = TIOADEoadDefinitions.GET_BYTE_FROM_UINT32(imageHeader.TIOADEoadImageLength, ii);
+    }
+    //17
+    System.arraycopy(imageHeader.TIOADEoadImageSoftwareVersion,0,imageNotifyHeader,position,imageHeader.TIOADEoadImageSoftwareVersion.length);
+    position += imageHeader.TIOADEoadImageSoftwareVersion.length;
+    //21
+    return imageNotifyHeader;
+  }
+
+
 }
 

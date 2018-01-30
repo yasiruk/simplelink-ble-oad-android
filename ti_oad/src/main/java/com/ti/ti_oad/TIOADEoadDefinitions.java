@@ -1,5 +1,7 @@
 package com.ti.ti_oad;
 
+import java.util.Formatter;
+
 /**
  * Created by ole on 24/11/2017.
  */
@@ -21,12 +23,12 @@ public class TIOADEoadDefinitions {
 
 
 
-  public static byte   TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE                   = 0x01;
+  public final static byte   TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE                   = 0x01;
 
-  public static byte   TI_OAD_CONTROL_POINT_CMD_START_OAD_PROCESS                = 0x03;
-  public static byte   TI_OAD_CONTROL_POINT_CMD_ENABLE_OAD_IMAGE                 = 0x04;
+  public final static byte   TI_OAD_CONTROL_POINT_CMD_START_OAD_PROCESS                = 0x03;
+  public final static byte   TI_OAD_CONTROL_POINT_CMD_ENABLE_OAD_IMAGE                 = 0x04;
 
-  public static byte   TI_OAD_CONTROL_POINT_CMD_IMAGE_BLOCK_WRITE_CHAR_RESPONSE  = 0x12;
+  public final static byte   TI_OAD_CONTROL_POINT_CMD_IMAGE_BLOCK_WRITE_CHAR_RESPONSE  = 0x12;
 
 
 
@@ -81,8 +83,39 @@ public class TIOADEoadDefinitions {
     return result;
   }
 
+  public static byte GET_BYTE_FROM_UINT32(long uint32,int whichByte) {
+    switch (whichByte) {
+      case 0:
+        return (byte)(uint32 & 0xFF);
+      case 1:
+        return (byte)((uint32 >> 8) & 0xff);
+      case 2:
+        return (byte)((uint32 >> 16) & 0xff);
+      case 3:
+        return (byte)((uint32 >> 24) & 0xff);
+      default:
+        return 0x00;
+    }
+  }
+
   public static int BUILD_UINT16(byte a, byte b) {
     return (int)((((int)(a & 0xFF) << 8) & 0x0000FF00) | ((int)(b & 0x000000FF)));
+  }
+
+  public static String BytetohexString(byte[] b) {
+    StringBuilder sb = new StringBuilder(b.length * (2 + 1));
+    Formatter formatter = new Formatter(sb);
+
+    for (int i = 0; i < b.length; i++) {
+      if (i < b.length - 1)
+        formatter.format("%02X:", b[i]);
+      else
+        formatter.format("%02X", b[i]);
+
+    }
+    formatter.close();
+
+    return sb.toString();
   }
 
   public static byte GET_HIGH_BYTE_FROM_UINT16(int val) {
