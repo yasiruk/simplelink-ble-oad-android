@@ -123,7 +123,7 @@ public class BluetoothLEDevice {
                     }
                 }
             }
-        }).start();
+        },"BluetoothLEDevice Connect and Discover Thread").start();
     }
     public void disconnectDevice() {
         dVars.disconnectionCalls++;
@@ -318,7 +318,7 @@ public class BluetoothLEDevice {
                 }
             }
             PrintAllServicesAndCharacteristics();
-            TransactionHandlerThread = new Thread(deviceTransactionHandler);
+            TransactionHandlerThread = new Thread(deviceTransactionHandler,"BluetoothLEDevice Transaction Handler");
             TransactionHandlerThread.start();
             Log.d(TAG,"Transaction Handler Thread : " + TransactionHandlerThread.toString());
             isDiscovered = true;

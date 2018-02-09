@@ -1,5 +1,7 @@
 package com.ti.ti_oad;
 
+import android.util.Log;
+
 import java.util.Formatter;
 
 /**
@@ -21,12 +23,17 @@ public class TIOADEoadDefinitions {
   public static String          TI_OAD_IMAGE_CONTROL        = "f000ffc5-0451-4000-b000-000000000000";
 
 
+  public static byte[] TI_OAD_IMG_INFO_CC2640R2 = new byte[] {'O','A','D',' ','I','M','G',' '};
+  public static byte[] TI_OAD_IMG_INFO_CC26X2R1 = new byte[] {'C','C','2','6','x','2','R','1'};
+  public static byte[] TI_OAD_IMG_INFO_CC213XR1 = new byte[] {'C','C','1','3','x','2','R','1'};
 
 
   public final static byte   TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE                   = 0x01;
 
   public final static byte   TI_OAD_CONTROL_POINT_CMD_START_OAD_PROCESS                = 0x03;
   public final static byte   TI_OAD_CONTROL_POINT_CMD_ENABLE_OAD_IMAGE                 = 0x04;
+
+  public final static byte   TI_OAD_CONTROL_POINT_CMD_DEVICE_TYPE_CMD                  = 0x10;
 
   public final static byte   TI_OAD_CONTROL_POINT_CMD_IMAGE_BLOCK_WRITE_CHAR_RESPONSE  = 0x12;
 
@@ -126,12 +133,18 @@ public class TIOADEoadDefinitions {
   }
 
   public enum oadStatusEnumeration {
+    tiOADClientDeviceConnecting,
+    tiOADClientDeviceDiscovering,
+    tiOADClientConnectionParametersChanged,
+    tiOADClientDeviceMTUSet,
     tiOADClientInitializing,
     tiOADClientPeripheralConnected,
     tiOADClientOADServiceMissingOnPeripheral,
     tiOADClientOADCharacteristicMissingOnPeripheral,
     tiOADClientOADWrongVersion,
     tiOADClientReady,
+    tiOADClientFileIsNotForDevice,
+    tiOADClientDeviceTypeRequestResponse,
     tiOADClientBlockSizeRequestSent,
     tiOADClientGotBlockSizeResponse,
     tiOADClientHeaderSent,
@@ -143,7 +156,148 @@ public class TIOADEoadDefinitions {
     tiOADClientImageTransferOK,
     tiOADClientEnableOADImageCommandSent,
     tiOADClientCompleteFeedbackOK,
-    tiOADClientCompleteFeedbackFailed
+    tiOADClientCompleteFeedbackFailed,
+    tiOADClientCompleteDeviceDisconnectedPositive,
+    tiOADClientCompleteDeviceDisconnectedDuringProgramming,
+  }
+
+  public enum oadChipType {
+    tiOADChipTypeCC1310,
+    tiOADChipTypeCC1350,
+    tiOADChipTypeCC2620,
+    tiOADChipTypeCC2630,
+    tiOADChipTypeCC2640,
+    tiOADChipTypeCC2650,
+    tiOADChipTypeCustomOne,
+    tiOADChipTypeCustomTwo,
+    tiOADChipTypeCC2640R2,
+    tiOADChipTypeCC2642,
+    tiOADChipTypeCC2644,
+    tiOADChipTypeCC2652,
+    tiOADChipTypeCC1312,
+    tiOADChipTypeCC1352,
+    tiOADChipTypeCC1354,
+  }
+
+  public enum oadChipFamily {
+    tiOADChipFamilyCC26x0,
+    tiOADChipFamilyCC13x0,
+    tiOADChipFamilyCC26x1,
+    tiOADChipFamilyCC26x0R2,
+    tiOADChipFamilyCC13x2_CC26x2,
+  }
+
+  static public byte[] oadImageInfoFromChipType (byte[] chipTypeVector) {
+    oadChipType chipType = oadChipType.values()[chipTypeVector[0]];
+    switch (chipType) {
+      case tiOADChipTypeCC2640R2:
+        return TI_OAD_IMG_INFO_CC2640R2;
+      case tiOADChipTypeCC2642:
+      case tiOADChipTypeCC2652:
+        return TI_OAD_IMG_INFO_CC26X2R1;
+      case tiOADChipTypeCC1352:
+        return TI_OAD_IMG_INFO_CC213XR1;
+      default:
+        return new byte[8];
+    }
+  }
+
+  static public String oadChipTypePrettyPrint(byte[] chipTypeVector) {
+    oadChipType chipType = oadChipType.values()[chipTypeVector[0]];
+    //oadChipFamily chipFamily = chipType[1];
+
+    switch (chipType) {
+      case tiOADChipTypeCC1310:
+        return "CC1310";
+      case tiOADChipTypeCC1312:
+        return "CC1312";
+      case tiOADChipTypeCC1350:
+        return "CC1350";
+      case tiOADChipTypeCC1352:
+        return "CC1352";
+      case tiOADChipTypeCC1354:
+        return "CC1354";
+      case tiOADChipTypeCC2620:
+        return "CC2620";
+      case tiOADChipTypeCC2630:
+        return "CC2630";
+      case tiOADChipTypeCC2640:
+        return "CC2640";
+      case tiOADChipTypeCC2640R2:
+        return "CC2640R2";
+      case tiOADChipTypeCC2642:
+        return "CC2642";
+      case tiOADChipTypeCC2644:
+        return "CC2644";
+      case tiOADChipTypeCC2650:
+        return "CC2650";
+      case tiOADChipTypeCC2652:
+        return "CC2652";
+      case tiOADChipTypeCustomOne:
+      case tiOADChipTypeCustomTwo:
+        return "Custom";
+    }
+    return "Unknown";
+  }
+
+
+  static public String oadStatusEnumerationGetDescriptiveString(oadStatusEnumeration status) {
+    switch (status) {
+      case tiOADClientDeviceConnecting:
+        return "TI EOAD Client is connecting !";
+      case tiOADClientDeviceDiscovering:
+        return "TI EOAD Client is discovering services !";
+      case tiOADClientConnectionParametersChanged:
+        return "TI EOAD Client waiting for connection parameter change";
+      case tiOADClientDeviceMTUSet:
+        return "TI EOAD Client waiting for MTU Update";
+      case tiOADClientInitializing:
+        return "TI EOAD Client is initializing !";
+      case tiOADClientPeripheralConnected:
+        return "Connected to peripheral";
+      case tiOADClientOADServiceMissingOnPeripheral:
+        return "EOAD service is missing on peripheral, cannot continue !";
+      case tiOADClientOADCharacteristicMissingOnPeripheral:
+        return "Found EOAD service, but it`s missing some characteristics !";
+      case tiOADClientOADWrongVersion:
+        return "OAD on peripheral has the wrong version !";
+      case tiOADClientReady:
+        return "EOAD Client is ready for programming";
+      case tiOADClientBlockSizeRequestSent:
+        return "EOAD Client sent block size request to peripheral";
+      case tiOADClientGotBlockSizeResponse:
+        return "EOAD Client received block size response from peripheral";
+      case tiOADClientHeaderSent:
+        return "EOAD Client sent image header to peripheral";
+      case tiOADClientHeaderOK:
+        return "EOAD Client header was accepted by peripheral";
+      case tiOADClientHeaderFailed:
+        return "EOAD Client header was rejected by peripheral, cannot continue !";
+      case tiOADClientOADProcessStartCommandSent:
+        return "Sent start command to peripheral";
+      case tiOADClientImageTransfer:
+        return "EOAD Image is transfering";
+      case tiOADClientImageTransferFailed:
+        return "EOAD Image transfer failed, cannot continue !";
+      case tiOADClientImageTransferOK:
+        return "EOAD Image transfer completed OK";
+      case tiOADClientEnableOADImageCommandSent:
+        return "EOAD Image Enable command sent";
+      case tiOADClientCompleteFeedbackOK:
+        return "EOAD Image Enable OK, device is rebooting on new image !";
+      case tiOADClientCompleteFeedbackFailed:
+        return "EOAD Image Enable FAILED, device continuing on old image !";
+      case tiOADClientFileIsNotForDevice:
+        return "EOAD Image is not for this device, cannot continue";
+      case tiOADClientDeviceTypeRequestResponse:
+        return "EOAD Image device type response received";
+      case tiOADClientCompleteDeviceDisconnectedPositive:
+        return "TI EOAD Client disconnected after successfull programming !";
+      case tiOADClientCompleteDeviceDisconnectedDuringProgramming:
+        return "TI EOAD Client disconnected during image transfer, please move closer and try again !";
+      default:
+        return "Unknown states";
+    }
   }
 
 }

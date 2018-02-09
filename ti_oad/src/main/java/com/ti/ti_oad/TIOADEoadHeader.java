@@ -259,6 +259,50 @@ public class TIOADEoadHeader {
     Log.d(TAG,"Image Reserved : " + String.format("%d(0x%04X)",header.TIOADEoadReserved,header.TIOADEoadReserved));
   }
 
+  public String getHeaderInfo(TIOADEoadHeader header) {
+    String headerInfo = "Enhanced OAD Header" + "\r\n";
+
+    headerInfo += "Image Information : " + String.format("%c,%c,%c,%c,%c,%c,%c,%c",
+            header.TIOADEoadImageIdentificationValue[0],
+            header.TIOADEoadImageIdentificationValue[1],
+            header.TIOADEoadImageIdentificationValue[2],
+            header.TIOADEoadImageIdentificationValue[3],
+            header.TIOADEoadImageIdentificationValue[4],
+            header.TIOADEoadImageIdentificationValue[5],
+            header.TIOADEoadImageIdentificationValue[6],
+            header.TIOADEoadImageIdentificationValue[7]) + "\r\n";
+    headerInfo += "Image CRC32 : " + String.format("0x%08X",header.TIOADEoadImageCRC32) + "\r\n";
+    headerInfo += "Image BIM version : " + header.TIOADEoadBIMVersion + "\r\n";
+    headerInfo += "Image Image Header Version : " + header.TIOADEoadImageHeaderVersion + "\r\n";
+    headerInfo += "Image Wireless Standard : " + WirelessStdToString(header.TIOADEoadImageWirelessTechnology) + "\r\n";
+    headerInfo += "Image Information : " + String.format("%d(0x%02x),%d(0x%02x),%d(0x%02x),%d(0x%02x)",
+            header.TIOADEoadImageInformation[0],
+            header.TIOADEoadImageInformation[0],
+            header.TIOADEoadImageInformation[1],
+            header.TIOADEoadImageInformation[1],
+            header.TIOADEoadImageInformation[2],
+            header.TIOADEoadImageInformation[2],
+            header.TIOADEoadImageInformation[3],
+            header.TIOADEoadImageInformation[3]) + "\r\n";
+    headerInfo += "Image Validation : " + String.format("%d(0x%08X)",header.TIOADEoadImageValidation,header.TIOADEoadImageValidation) + "\r\n";
+    headerInfo += "Image Length : " + String.format("%d(0x%08X) Bytes",header.TIOADEoadImageLength,header.TIOADEoadImageLength) + "\r\n";
+    headerInfo += "Program Entry Address : " + String.format("0x%08X",header.TIOADEoadProgramEntryAddress) + "\r\n";
+    headerInfo += "Image Software Version : " + String.format("%c(0x%02X),%c(0x%02X),%c(0x%02X),%c(0x%02X)",
+            TIOADEoadImageSoftwareVersion[0],
+            TIOADEoadImageSoftwareVersion[0],
+            TIOADEoadImageSoftwareVersion[1],
+            TIOADEoadImageSoftwareVersion[1],
+            TIOADEoadImageSoftwareVersion[2],
+            TIOADEoadImageSoftwareVersion[2],
+            TIOADEoadImageSoftwareVersion[3],
+            TIOADEoadImageSoftwareVersion[3]
+    ) + "\r\n";
+    headerInfo += "Image End Address : " + String.format("0x%08X",header.TIOADEoadImageEndAddress) + "\r\n";
+    headerInfo += "Image Header Length : " + String.format("%d(0x%08X) Bytes",header.TIOADEoadImageHeaderLength,header.TIOADEoadImageHeaderLength) + "\r\n";
+    headerInfo += "Image Reserved : " + String.format("%d(0x%04X)",header.TIOADEoadReserved,header.TIOADEoadReserved) + "\r\n";
+    return headerInfo;
+  }
+
   boolean addBoundaryInformation(TIOADEoadBoundaryInformation boundaryInformation,
                                  byte rawData[],
                                  int position) {

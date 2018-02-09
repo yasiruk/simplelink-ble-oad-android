@@ -2,8 +2,11 @@ package com.ti.ti_oad;
 
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -21,20 +24,33 @@ public class TIOADEoadImageReader {
   private ArrayList <TIOADEoadHeader.TIOADEoadSegmentInformation> imageSegments;
   private Context context;
 
-  public TIOADEoadImageReader(String assetFileName, Context context) {
+  public TIOADEoadImageReader(Uri filename, Context context) {
     this.imageSegments = new ArrayList<>();
     this.context = context;
-    this.TIOADToadLoadImage(assetFileName);
+    this.TIOADToadLoadImageFromDevice(filename);
   }
 
-  public void TIOADToadLoadImage(String assetFileName) {
+  public void TIOADToadLoadImage(String assetFilename) {
     AssetManager aMan = this.context.getAssets();
 
     try {
-      InputStream inputStream = aMan.open(assetFileName);
+      InputStream inputStream = aMan.open(assetFilename);
       rawImageData = new byte[inputStream.available()];
       int len = inputStream.read(rawImageData);
       Log.d(TAG,"Read " + len + " bytes from asset file");
+      this.imageHeader = new TIOADEoadHeader(rawImageData);
+      this.imageHeader.validateImage();
+    }
+    catch (IOException e) {
+      Log.d(TAG,"Could not read input file");
+    }
+  }
+  public void TIOADToadLoadImageFromDevice(Uri filename) {
+    try {
+      InputStream inputStream = context.getContentResolver().openInputStream(filename);
+      rawImageData = new byte[inputStream.available()];
+      int len = inputStream.read(rawImageData);
+      Log.d(TAG,"Read " + len + " bytes from file");
       this.imageHeader = new TIOADEoadHeader(rawImageData);
       this.imageHeader.validateImage();
     }

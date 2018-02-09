@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.content.Context;
+import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 
@@ -38,19 +39,17 @@ public class TIOADEoadClient {
   private TIOADEoadDefinitions.oadStatusEnumeration internalState;
 
   BluetoothLEDevice oadDevice;
-
+  byte[] TIOADEoadDeviceID;
+  int myMTU;
 
   private int TIOADEoadBlockSize = 0;
   private int TIOADEoadTotalBlocks = 0;
 
 
 
-  public TIOADEoadClient(Context context, String assetFileName) {
+  public TIOADEoadClient(Context context) {
     this.context = context;
-    fileReader = new TIOADEoadImageReader(assetFileName,this.context);
   }
-
-
 
   public Runnable oadThread = new Runnable() {
     @Override
@@ -84,16 +83,29 @@ public class TIOADEoadClient {
           }
         }
       }).start();
-      if (progressCallback != null) {
-        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientReady);
-      }
 
       internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientBlockSizeRequestSent;
 
       while (internalState != TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientGotBlockSizeResponse) {
         sleepWait(200);
       }
+      new Thread(new Runnable() {
+        @Override
+        public void run() {
+          sendEoadReadDeviceID();
+        }
+      }).start();
 
+      while (internalState != TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceTypeRequestResponse) {
+        sleepWait(200);
+      }
+    }
+  };
+
+
+  public Runnable oadProgramThread = new Runnable() {
+    @Override
+    public void run() {
       new Thread(new Runnable() {
         @Override
         public void run() {
@@ -126,7 +138,7 @@ public class TIOADEoadClient {
         sleepWait(200);
       }
       if (progressCallback != null) {
-        progressCallback.oadProgressUpdate(100);
+        progressCallback.oadProgressUpdate(100,TIOADEoadTotalBlocks);
       }
       if (progressCallback != null) {
         progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientEnableOADImageCommandSent);
@@ -144,7 +156,6 @@ public class TIOADEoadClient {
       if (progressCallback != null) {
         progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientCompleteFeedbackOK);
       }
-
     }
   };
 
@@ -169,8 +180,26 @@ public class TIOADEoadClient {
     return true;
   }
 
-  public void start() {
-    sendHeaderToDevice();
+  public void start(Uri filename) {
+    //Start programming directly
+    fileReader = new TIOADEoadImageReader(filename,this.context);
+
+    //We now have the chip id and can check it against the image file to see if this can be programmed ...
+    boolean imageCanBeProgrammed = true;
+    byte[] fileImageInfo = fileReader.imageHeader.TIOADEoadImageIdentificationValue;
+    byte[] oadClientImageInfo = TIOADEoadDefinitions.oadImageInfoFromChipType(TIOADEoadDeviceID);
+    for (int ii = 0; ii < 8; ii++) {
+      if (fileImageInfo[ii] != oadClientImageInfo[ii]) imageCanBeProgrammed = false;
+    }
+    if (!imageCanBeProgrammed) {
+      if (progressCallback != null) {
+        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientFileIsNotForDevice);
+      }
+      //Cannot continue
+      return;
+    }
+    new Thread(oadProgramThread).start();
+    return;
   }
 
 
@@ -204,9 +233,15 @@ public class TIOADEoadClient {
         oadDevice.writeCharacteristicAsync(blockRequestChar,buffer);
         Log.d(TAG,"Sent Block " + block + " With Data:" + TIOADEoadDefinitions.BytetohexString(buffer));
         if (progressCallback != null) {
-          progressCallback.oadProgressUpdate((float)block/(float)TIOADEoadTotalBlocks * (float)100);
+          progressCallback.oadProgressUpdate((float)block/(float)TIOADEoadTotalBlocks * (float)100, (int)block);
+          progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientImageTransfer);
         }
 
+  }
+
+  public void sendEoadReadDeviceID() {
+    byte cmd = TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_DEVICE_TYPE_CMD;
+    oadDevice.writeCharacteristicAsync(imageControlChar,cmd);
   }
 
   public void sendEoadEnableImageCmd() {
@@ -216,6 +251,10 @@ public class TIOADEoadClient {
 
   public void sendEoadStartOADProcessCmd () {
     byte cmd = TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_START_OAD_PROCESS;
+    TIOADEoadTotalBlocks = this.fileReader.getRawImageData().length / (TIOADEoadBlockSize - 4);
+    if ((this.fileReader.getRawImageData().length - (TIOADEoadTotalBlocks * (TIOADEoadBlockSize - 4))) > 0) {
+      TIOADEoadTotalBlocks++;
+    }
     oadDevice.writeCharacteristicAsync(imageControlChar,cmd);
   }
 
@@ -230,22 +269,24 @@ public class TIOADEoadClient {
     }
     TIOADEoadBlockSize = TIOADEoadDefinitions.BUILD_UINT16(resp[2],resp[1]);
     Log.d(TAG,"Block Size is : " + TIOADEoadBlockSize);
-    TIOADEoadTotalBlocks = this.fileReader.getRawImageData().length / (TIOADEoadBlockSize - 4);
-    if ((this.fileReader.getRawImageData().length - (TIOADEoadTotalBlocks * (TIOADEoadBlockSize - 4))) > 0) {
-      TIOADEoadTotalBlocks++;
-    }
     internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientGotBlockSizeResponse;
   }
 
 
   public void handleOADControlPointMessage(final byte[] response) {
     switch(response[0]) {
-      case TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE:
-        handleEoadBlockSizeResponse(response);
-        //We should now be ready to actually run an OAD programming
+      case TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_DEVICE_TYPE_CMD:
+        internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceTypeRequestResponse;
+        TIOADEoadDeviceID = new byte[4];
+        for (int ii = 0; ii < 4; ii++) TIOADEoadDeviceID[ii] = response[ii + 1];
+        Log.d(TAG,"Device ID: "  + TIOADEoadDefinitions.oadChipTypePrettyPrint(TIOADEoadDeviceID));
         if (progressCallback != null) {
           progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientReady);
         }
+        break;
+      case TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE:
+        handleEoadBlockSizeResponse(response);
+        //We should now be ready to actually run an OAD programming
         break;
       case TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_ENABLE_OAD_IMAGE:
         if (response[1] == 0x00) {
@@ -261,7 +302,7 @@ public class TIOADEoadClient {
               long block = TIOADEoadDefinitions.BUILD_UINT32(response[5],response[4],response[3],response[2]);
               sendEoadDataBlock(block);
             }
-          }).start();
+          },"OAD Block Send Thread").start();
         }
         else if (response[1] == 0x0e) {
           internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientImageTransferOK;
@@ -323,21 +364,39 @@ public class TIOADEoadClient {
   }
 
 
+  public int getMTU() {
+    return myMTU;
+  }
+
+  public int getTIOADEoadBlockSize() {
+    return TIOADEoadBlockSize;
+  }
+
+  public int getTIOADEoadTotalBlocks() {
+    return TIOADEoadTotalBlocks;
+  }
 
   BluetoothLEDevice.BluetoothLEDeviceCB cb = new BluetoothLEDevice.BluetoothLEDeviceCB() {
     @Override
     public void waitingForConnect(BluetoothLEDevice dev, int milliSecondsLeft, int retry) {
-
+      if (progressCallback != null) {
+        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceConnecting);
+      }
     }
 
     @Override
     public void waitingForDiscovery(BluetoothLEDevice dev, int milliSecondsLeft, int retry) {
-
+      if (progressCallback != null) {
+        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceDiscovering);
+      }
     }
 
     @Override
     public void deviceReady(BluetoothLEDevice dev) {
       Log.d(TAG,"Device is ready !");
+      if (progressCallback != null) {
+        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceMTUSet);
+      }
       internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientReady;
     }
 
@@ -403,12 +462,19 @@ public class TIOADEoadClient {
 
     @Override
     public void deviceDidDisconnect(BluetoothLEDevice dev) {
-
+      if (progressCallback != null) {
+        if (internalState != TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientImageTransfer) {
+          progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientCompleteDeviceDisconnectedPositive);
+        }
+        else {
+          progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientCompleteDeviceDisconnectedDuringProgramming);
+        }
+      }
     }
 
     @Override
     public void mtuValueChanged(int mtu) {
-
+      myMTU = mtu;
     }
   };
 
