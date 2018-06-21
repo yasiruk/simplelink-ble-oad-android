@@ -18,20 +18,10 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.UUID;
 
-/*
- Copyright 2018 Texas Instruments
+import static com.ti.ti_oad.TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientProgrammingAbortedByUser;
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+/**
+ * Created by ole on 01/12/2017.
  */
 
 public class TIOADEoadClient {
@@ -148,6 +138,9 @@ public class TIOADEoadClient {
 
       while (internalState != TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientImageTransferOK) {
         sleepWait(200);
+        if (internalState == TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientProgrammingAbortedByUser) {
+          return;
+        }
       }
       if (progressCallback != null) {
         progressCallback.oadProgressUpdate(100,TIOADEoadTotalBlocks);
@@ -192,6 +185,30 @@ public class TIOADEoadClient {
     return true;
   }
 
+
+  public void start(String filename) {
+    //Start programming directly
+    fileReader = new TIOADEoadImageReader(filename,this.context);
+
+    //We now have the chip id and can check it against the image file to see if this can be programmed ...
+    boolean imageCanBeProgrammed = true;
+    byte[] fileImageInfo = fileReader.imageHeader.TIOADEoadImageIdentificationValue;
+    byte[] oadClientImageInfo = TIOADEoadDefinitions.oadImageInfoFromChipType(TIOADEoadDeviceID);
+    for (int ii = 0; ii < 8; ii++) {
+      if (fileImageInfo[ii] != oadClientImageInfo[ii]) imageCanBeProgrammed = false;
+    }
+    if (!imageCanBeProgrammed) {
+      if (progressCallback != null) {
+        progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientFileIsNotForDevice);
+      }
+      //Cannot continue
+      return;
+    }
+    new Thread(oadProgramThread).start();
+    return;
+  }
+
+
   public void start(Uri filename) {
     //Start programming directly
     fileReader = new TIOADEoadImageReader(filename,this.context);
@@ -212,6 +229,10 @@ public class TIOADEoadClient {
     }
     new Thread(oadProgramThread).start();
     return;
+  }
+
+  public void abortProgramming() {
+    internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientProgrammingAbortedByUser;
   }
 
 
@@ -292,6 +313,12 @@ public class TIOADEoadClient {
         TIOADEoadDeviceID = new byte[4];
         for (int ii = 0; ii < 4; ii++) TIOADEoadDeviceID[ii] = response[ii + 1];
         Log.d(TAG,"Device ID: "  + TIOADEoadDefinitions.oadChipTypePrettyPrint(TIOADEoadDeviceID));
+        if (TIOADEoadDefinitions.oadChipTypePrettyPrint(TIOADEoadDeviceID).equals("CC1352P")) {
+          //Special case for the CC1352P's because they can have two different RF layouts
+          if (progressCallback != null) {
+            progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientChipIsCC1352PShowWarningAboutLayouts);
+          }
+        }
         if (progressCallback != null) {
           progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientReady);
         }
@@ -307,6 +334,14 @@ public class TIOADEoadClient {
         break;
       case TIOADEoadDefinitions.TI_OAD_CONTROL_POINT_CMD_IMAGE_BLOCK_WRITE_CHAR_RESPONSE:
         if (response[1] == 0x00) {
+          if (internalState == TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientProgrammingAbortedByUser) {
+            oadDevice.g.disconnect();
+            oadDevice.g.close();
+            if (progressCallback != null) {
+              progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientProgrammingAbortedByUser);
+            }
+            return;
+          }
           internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientImageTransfer;
           new Thread(new Runnable() {
             @Override
@@ -388,6 +423,8 @@ public class TIOADEoadClient {
     return TIOADEoadTotalBlocks;
   }
 
+  public byte[] getTIOADEoadDeviceID() { return TIOADEoadDeviceID; }
+
   BluetoothLEDevice.BluetoothLEDeviceCB cb = new BluetoothLEDevice.BluetoothLEDeviceCB() {
     @Override
     public void waitingForConnect(BluetoothLEDevice dev, int milliSecondsLeft, int retry) {
@@ -410,6 +447,7 @@ public class TIOADEoadClient {
         progressCallback.oadStatusUpdate(TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientDeviceMTUSet);
       }
       internalState = TIOADEoadDefinitions.oadStatusEnumeration.tiOADClientReady;
+
     }
 
     @Override

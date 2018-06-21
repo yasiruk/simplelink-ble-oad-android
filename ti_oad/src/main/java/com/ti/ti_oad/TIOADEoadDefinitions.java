@@ -4,20 +4,8 @@ import android.util.Log;
 
 import java.util.Formatter;
 
-/*
- Copyright 2018 Texas Instruments
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+/**
+ * Created by ole on 24/11/2017.
  */
 
 public class TIOADEoadDefinitions {
@@ -37,7 +25,7 @@ public class TIOADEoadDefinitions {
 
   public static byte[] TI_OAD_IMG_INFO_CC2640R2 = new byte[] {'O','A','D',' ','I','M','G',' '};
   public static byte[] TI_OAD_IMG_INFO_CC26X2R1 = new byte[] {'C','C','2','6','x','2','R','1'};
-  public static byte[] TI_OAD_IMG_INFO_CC213XR1 = new byte[] {'C','C','1','3','x','2','R','1'};
+  public static byte[] TI_OAD_IMG_INFO_CC13XR1 = new byte[] {'C','C','1','3','x','2','R','1'};
 
 
   public final static byte   TI_OAD_CONTROL_POINT_CMD_GET_BLOCK_SIZE                   = 0x01;
@@ -122,6 +110,7 @@ public class TIOADEoadDefinitions {
   }
 
   public static String BytetohexString(byte[] b) {
+    if (b == null) return "NULL";
     StringBuilder sb = new StringBuilder(b.length * (2 + 1));
     Formatter formatter = new Formatter(sb);
 
@@ -171,6 +160,8 @@ public class TIOADEoadDefinitions {
     tiOADClientCompleteFeedbackFailed,
     tiOADClientCompleteDeviceDisconnectedPositive,
     tiOADClientCompleteDeviceDisconnectedDuringProgramming,
+    tiOADClientProgrammingAbortedByUser,
+    tiOADClientChipIsCC1352PShowWarningAboutLayouts,
   }
 
   public enum oadChipType {
@@ -188,7 +179,7 @@ public class TIOADEoadDefinitions {
     tiOADChipTypeCC2652,
     tiOADChipTypeCC1312,
     tiOADChipTypeCC1352,
-    tiOADChipTypeCC1354,
+    tiOADChipTypeCC1352P,
   }
 
   public enum oadChipFamily {
@@ -197,6 +188,26 @@ public class TIOADEoadDefinitions {
     tiOADChipFamilyCC26x1,
     tiOADChipFamilyCC26x0R2,
     tiOADChipFamilyCC13x2_CC26x2,
+  }
+
+  static public String oadImageIdentificationPrettyPrint(byte[] imageId) {
+    boolean match = true;
+    for (int ii = 0; ii < 8; ii++) {
+      if (imageId[ii] != TI_OAD_IMG_INFO_CC2640R2[ii]) match = false;
+    }
+    if (match) return "CC2640R2";
+    match = true;
+    for (int ii = 0; ii < 8; ii++) {
+      if (imageId[ii] != TI_OAD_IMG_INFO_CC26X2R1[ii]) match = false;
+    }
+    if (match) return "CC26X2R";
+    match = true;
+    for (int ii = 0; ii < 8; ii++) {
+      if (imageId[ii] != TI_OAD_IMG_INFO_CC13XR1[ii]) match = false;
+    }
+    if (match) return "CC13X2R";
+
+    return "UNKNOWN";
   }
 
   static public byte[] oadImageInfoFromChipType (byte[] chipTypeVector) {
@@ -208,7 +219,8 @@ public class TIOADEoadDefinitions {
       case tiOADChipTypeCC2652:
         return TI_OAD_IMG_INFO_CC26X2R1;
       case tiOADChipTypeCC1352:
-        return TI_OAD_IMG_INFO_CC213XR1;
+      case tiOADChipTypeCC1352P:
+        return TI_OAD_IMG_INFO_CC13XR1;
       default:
         return new byte[8];
     }
@@ -227,8 +239,8 @@ public class TIOADEoadDefinitions {
         return "CC1350";
       case tiOADChipTypeCC1352:
         return "CC1352";
-      case tiOADChipTypeCC1354:
-        return "CC1354";
+      case tiOADChipTypeCC1352P:
+        return "CC1352P";
       case tiOADChipTypeCC2620:
         return "CC2620";
       case tiOADChipTypeCC2630:
@@ -307,6 +319,8 @@ public class TIOADEoadDefinitions {
         return "TI EOAD Client disconnected after successfull programming !";
       case tiOADClientCompleteDeviceDisconnectedDuringProgramming:
         return "TI EOAD Client disconnected during image transfer, please move closer and try again !";
+      case tiOADClientProgrammingAbortedByUser:
+        return "Programming aborted by user !";
       default:
         return "Unknown states";
     }
